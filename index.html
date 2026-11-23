@@ -375,7 +375,7 @@ document.addEventListener("change",function(e){
  if(t.id==="m-f"){S.f.form=t.value;save();render()}});
 render();
 /* 행안부 법정동 코드 변환본(regions.json) 불러오기 */
-fetch("regions.json").then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(j&&Object.keys(j).length){Object.keys(j).forEach(function(k){R[k]=j[k]});g("rsrc").textContent="지역 데이터: 행정안전부 법정동코드 기준 전국 적용";render()}}).catch(function(){g("rsrc").textContent="지역 데이터: 전국 시·도/시·군·구 내장. 동은 서울 위주이며 없는 동은 직접 입력하세요. regions.json을 추가하면 전국 동이 목록에 표시됩니다."});
+fetch("regions.json").then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(j&&Object.keys(j).length){Object.keys(j).forEach(function(k){R[k]=j[k]});g("rsrc").textContent="지역 데이터: 행정안전부 법정동코드 기준 전국 적용";render()}}).catch(function(){g("rsrc").);
 try{if(window.claude&&window.claude.use){window.claude.use("db").then(function(db){if(!db)return;DREF=db.doc("pilapick3/state");
  DREF.onSnapshot(function(snap){
   if(!snap.exists){LASTJ=shared();DREF.set({json:LASTJ}).catch(function(){});return}
