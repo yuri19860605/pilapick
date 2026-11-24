@@ -304,7 +304,7 @@ function render(){
  g("who").innerHTML=S.user?'<span class="tag hot">'+ROLE[S.user.role]+'</span> <strong>'+esc(S.user.name)+'</strong> <button class="btn ghost sm" data-act="logout">로그아웃</button>':'<button class="btn sm" data-act="login">로그인 · 가입</button>';
  document.querySelector(".tabs").style.display=au?"none":"";
  document.querySelectorAll("[data-tab]").forEach(function(b){b.setAttribute("aria-selected",b.dataset.tab===S.tab);b.style.display=(b.dataset.tab==="my"?!!S.user:(S.role==="member"?b.dataset.tab==="trial":(S.role==="teacher"?b.dataset.tab!=="trial":true)))?"":"none"});
- var tt=g("ttl");tt.innerHTML=(S.role==="center"&&S.center.name)?ICON[S.center.type]+" "+esc(S.center.name)+"<small>필라픽으로 대강·구인·체험을 관리 중</small>":"필라픽<small>필라테스 대강·구인·체험을 한 곳에서</small>";
+ var tt=g("ttl");tt.innerHTML=(S.role==="center"&&S.center.name)?ICON[S.center.type]+" "+esc(S.center.name)+"<small>필라픽으로 대강·구인·체험을 관리 중</small>":"필라픽<small>회원·센터·강사를 하나로 잇는 필라픽</small>";
  g("app").innerHTML=au?auth():(S.tab==="my"?my():(S.tab==="board"?board():(S.tab==="trial"?trial():pay())))}
 
 var GATE={post:1,apply:1,tapply:1,addtrial:1,fav:1,review:1};
