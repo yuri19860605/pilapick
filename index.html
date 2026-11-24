@@ -92,11 +92,18 @@ summary{cursor:pointer;font-size:13px;color:var(--mute)}
 <main id="app"></main>
 <p style="margin-top:16px"><button class="btn ghost sm" data-act="reset">시연 데이터 처음으로</button></p>
 <p id="sync" class="mute" style="margin:6px 0 0"></p>
-<p class="note">화면 버전 v8 · 시연용 프로토타입입니다. 구인 공고는 정보 게시용이며 채용 알선은 하지 않습니다(직업안정법상 신고·등록 여부는 전문가 확인 필요). 회원 정보와 데이터는 이 브라우저에만 저장되고 다른 사용자와 공유되지 않습니다(실서비스는 서버 인증 필요). 정산 금액은 참고용 계산이며 실제 세금·근로 형태 판단은 세무사·노무사에게 확인하세요.</p>
+<p class="note">화면 버전 v8 · 시연용 프로토타입입니다. 구인 공고는 정보 게시용이며 채용 알선은 하지 않습니다(직업안정법상 신고·등록 여부는 전문가 확인 필요). 공고·체험·후기 데이터는 아직 이 브라우저에만 저장되고 다른 사용자와 공유되지 않습니다(다음 단계에서 서버로 이전). 정산 금액은 참고용 계산이며 실제 세금·근로 형태 판단은 세무사·노무사에게 확인하세요.</p>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/dist/umd/supabase.min.js"></script>
 <script>
 (function(){
+/* ===== Supabase 설정: Supabase > Project Settings > API 에서 복사해 붙여넣으세요 ===== */
+var SB_URL="https://YOUR-PROJECT-ID.supabase.co";   /* Project URL */
+var SB_KEY="YOUR-ANON-PUBLIC-KEY";                  /* anon public 키 (공개용. service_role 키는 절대 넣지 마세요) */
+var sb=null,recovering=/type=recovery/.test(location.hash);
+try{if(window.supabase&&SB_URL.indexOf("YOUR-")<0&&SB_KEY.indexOf("YOUR-")<0)sb=window.supabase.createClient(SB_URL,SB_KEY)}catch(e){sb=null}
+/* sb가 null이면 기존 시연용(브라우저 저장) 로그인으로 동작합니다 */
 var KEY="pilapick-v3",UKEY="pilapick-users";
 var DAYS=["일","월","화","수","목","금","토"];
 var TYPES=["클래식","모던","바레","매트","리포머","캐딜락","체어","산전후","재활"];
@@ -262,24 +269,45 @@ function my(){var u=S.user,h='<h2>마이페이지</h2><div class="card"><strong>
  return h+'<div class="card"><h2>비밀번호 변경</h2><div class="grid"><div><label for="pw-o">현재 비밀번호</label><input id="pw-o" type="password" autocomplete="current-password"></div><div><label for="pw-n">새 비밀번호 (영문+숫자 8자 이상)</label><input id="pw-n" type="password" autocomplete="new-password"></div></div><div class="err" id="pw-m" role="alert"></div><button class="btn sm" data-act="chpw">변경하기</button> <button class="btn ghost sm" data-act="leave">회원 탈퇴</button></div>'}
 function chpw(){var us=users(),u=us[S.user.mail],o=g("pw-o").value,n=g("pw-n").value;function m(t){g("pw-m").textContent=t}
  if(n.length<8||!/[a-zA-Z]/.test(n)||!/\d/.test(n))return m("새 비밀번호는 영문과 숫자를 섞어 8자 이상이어야 해요.");
- hash(o,u.salt).then(function(h){if(h!==u.pw)return m("현재 비밀번호가 맞지 않아요.");var salt=String(Math.random()).slice(2)+Date.now();return hash(n,salt).then(function(h2){u.salt=salt;u.pw=h2;try{localStorage.setItem(UKEY,JSON.stringify(us))}catch(x){return m("저장할 수 없어요.")}toast("비밀번호를 변경했습니다");render()})})}
+ if(sb)return sbChpw(o,n,m);hash(o,u.salt).then(function(h){if(h!==u.pw)return m("현재 비밀번호가 맞지 않아요.");var salt=String(Math.random()).slice(2)+Date.now();return hash(n,salt).then(function(h2){u.salt=salt;u.pw=h2;try{localStorage.setItem(UKEY,JSON.stringify(us))}catch(x){return m("저장할 수 없어요.")}toast("비밀번호를 변경했습니다");render()})})}
 /* ---------- 로그인 / 회원가입 (시연용: 이 브라우저에만 저장) ---------- */
+function loadProfile(user,welcome){return sb.from("profiles").select("*").eq("id",user.id).single().then(function(r){
+ if(r.error||!r.data){toast("프로필을 불러오지 못했어요. 잠시 후 다시 시도하세요");return}
+ var d=r.data;enter(user.email,{name:d.name,role:d.role,region:{area:d.area,gu:d.gu,dong:d.dong},tid:user.id},!welcome)})}
+function sbLogin(e,p,m){m("로그인 중…");return sb.auth.signInWithPassword({email:e,password:p}).then(function(r){
+ if(r.error)return m(/not confirmed/i.test(r.error.message)?"이메일 인증을 먼저 완료해 주세요. (메일함 확인)":"이메일 또는 비밀번호가 맞지 않아요.");
+ return loadProfile(r.data.user,true)})}
+function sbSignup(e,p,n,rr,ro,m){m("가입 중…");return sb.auth.signUp({email:e,password:p,options:{emailRedirectTo:location.origin+location.pathname,data:{name:n,role:ro,area:rr.area,gu:rr.gu,dong:rr.dong}}}).then(function(r){
+ if(r.error)return m(/registered|already/i.test(r.error.message)?"이미 가입된 이메일이에요.":"가입하지 못했어요: "+r.error.message);
+ if(r.data.user&&r.data.user.identities&&!r.data.user.identities.length)return m("이미 가입된 이메일이에요.");
+ if(r.data.session)return loadProfile(r.data.user,true);
+ S.am="login";S.tab="auth";render();var x=g("a-m");x.style.color="var(--ok)";x.textContent="인증 메일을 보냈어요. 메일의 링크를 누른 뒤 로그인하세요."})}
+function sbChpw(o,n,m){return sb.auth.signInWithPassword({email:S.user.mail,password:o}).then(function(r){
+ if(r.error)return m("현재 비밀번호가 맞지 않아요.");
+ return sb.auth.updateUser({password:n}).then(function(x){if(x.error)return m("변경하지 못했어요: "+x.error.message);toast("비밀번호를 변경했습니다");render()})})}
+function recoverPw(){var np=g("a-p").value;function m(t){g("a-m").textContent=t}
+ if(np.length<8||!/[a-zA-Z]/.test(np)||!/\d/.test(np))return m("영문과 숫자를 섞어 8자 이상이어야 해요.");
+ return sb.auth.updateUser({password:np}).then(function(r){if(r.error)return m("변경하지 못했어요. 메일의 링크를 다시 눌러 주세요.");
+  S.am="login";recovering=false;toast("비밀번호를 변경했습니다");
+  sb.auth.getSession().then(function(x){if(x.data&&x.data.session)loadProfile(x.data.session.user,true);else{S.tab="auth";render()}})})}
 function users(){try{return JSON.parse(localStorage.getItem(UKEY)||"{}")}catch(e){return{}}}
 function hash(p,s){return crypto.subtle.digest("SHA-256",new TextEncoder().encode(s+p)).then(function(b){return Array.from(new Uint8Array(b)).map(function(x){return ("0"+x.toString(16)).slice(-2)}).join("")})}
-function auth(){var su=S.am==="signup",ro=S.ar||"member";
+function auth(){if(S.am==="recover")return '<div class="card auth"><h2>새 비밀번호 설정</h2><div class="f"><label for="a-p">새 비밀번호 (영문+숫자 8자 이상)</label><input id="a-p" type="password" autocomplete="new-password"></div><div class="err" id="a-m" role="alert"></div><button class="btn" style="width:100%" data-act="authgo">변경하기</button></div>';
+ var su=S.am==="signup",ro=S.ar||"member";
  return '<div class="card auth"><h2>'+(su?"회원가입":"로그인")+'</h2>'+
  (su?'<div class="seg f" role="group" aria-label="가입 유형">'+["member","teacher","center"].map(function(k){return '<button data-ar="'+k+'" aria-pressed="'+(k===ro)+'">'+ROLE[k]+'</button>'}).join("")+'</div><p class="mute" style="margin-top:0">'+{member:"체험 수업을 찾고 신청해요",teacher:"대강·구인 공고에 지원해요",center:"대강·구인·체험을 올려요"}[ro]+'</p><div class="f"><label for="a-n">'+(ro==="center"?"센터 이름":"이름")+'</label><input id="a-n" maxlength="20" autocomplete="name"></div>':'')+
  '<div class="f"><label for="a-e">이메일</label><input id="a-e" type="email" autocomplete="email"></div><div class="f"><label for="a-p">비밀번호'+(su?' (영문+숫자 8자 이상)':'')+'</label><input id="a-p" type="password" autocomplete="'+(su?'new-password':'current-password')+'"></div>'+
  (su?'<div class="f"><label for="a-p2">비밀번호 확인</label><input id="a-p2" type="password" autocomplete="new-password"></div><div class="f"><label>'+(ro==="center"?"센터 위치":ro==="teacher"?"활동 가능 지역":"자주 가는 지역")+'</label>'+reg("ar",{})+'</div><label class="chk"><input type="checkbox" id="a-t">이용약관과 개인정보 수집·이용에 동의합니다. (필수)</label>':'')+
- '<div class="err" id="a-m" role="alert"></div><button class="btn" style="width:100%" data-act="authgo">'+(su?"가입하기":"로그인")+'</button><p style="text-align:center;margin:12px 0 0" class="mute">'+(su?"이미 계정이 있나요? ":"처음이세요? ")+'<button class="btn ghost sm" data-act="authsw">'+(su?"로그인":"회원가입")+'</button></p></div>'}
-function enter(e,u){S.user={mail:e,name:u.name,role:u.role};S.role=u.role;var r=u.region;
+ '<div class="err" id="a-m" role="alert"></div><button class="btn" style="width:100%" data-act="authgo">'+(su?"가입하기":"로그인")+'</button>'+(su?'':'<p style="text-align:center;margin:10px 0 0"><button class="btn ghost sm" data-act="forgot">비밀번호를 잊으셨나요?</button></p>')+'<p style="text-align:center;margin:12px 0 0" class="mute">'+(su?"이미 계정이 있나요? ":"처음이세요? ")+'<button class="btn ghost sm" data-act="authsw">'+(su?"로그인":"회원가입")+'</button></p></div>'}
+function enter(e,u,quiet){S.user={mail:e,name:u.name,role:u.role};S.role=u.role;var r=u.region;
  if(u.role==="teacher"){if(!T(u.tid))S.teachers.push({id:u.tid,name:u.name,skills:["클래식"],area:r.area,gu:r.gu,dong:r.dong,days:[1,2,3,4,5],exp:"경력 미입력",badge:false});S.me=u.tid}
  if(u.role==="center"){S.center.name=u.name;S.center.area=r.area;S.center.gu=r.gu;S.center.dong=r.dong}
  if(u.role==="member"){S.member=u.name;S.f.area=r.area;S.f.gu=r.gu;S.f.dong=r.dong}
- S.tab=u.role==="member"?"trial":"board";save();render();toast(u.name+"님, 환영합니다")}
-function authgo(){var su=S.am==="signup",e=g("a-e").value.trim().toLowerCase(),p=g("a-p").value,us=users();
+ S.tab=u.role==="member"?"trial":"board";save();render();if(!quiet)toast(u.name+"님, 환영합니다")}
+function authgo(){if(S.am==="recover")return recoverPw();var su=S.am==="signup",e=g("a-e").value.trim().toLowerCase(),p=g("a-p").value,us=users();
  function m(t){g("a-m").textContent=t}
  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))return m("이메일 형식을 확인해 주세요.");
+ if(!su&&sb)return sbLogin(e,p,m);
  if(!su){var u=us[e];if(!u)return m("이메일 또는 비밀번호가 맞지 않아요.");return hash(p,u.salt).then(function(h){if(h!==u.pw)return m("이메일 또는 비밀번호가 맞지 않아요.");enter(e,u)})}
  var n=g("a-n").value.trim(),rr=rd("ar"),ro=S.ar||"member";
  if(!n)return m("이름을 입력해 주세요.");
@@ -287,6 +315,7 @@ function authgo(){var su=S.am==="signup",e=g("a-e").value.trim().toLowerCase(),p
  if(p!==g("a-p2").value)return m("비밀번호 확인이 일치하지 않아요.");
  if(!rr.area||!rr.gu)return m("시·도와 시·군·구까지 선택해 주세요.");
  if(!g("a-t").checked)return m("필수 약관에 동의해 주세요.");
+ if(sb)return sbSignup(e,p,n,rr,ro,m);
  if(us[e])return m("이미 가입된 이메일이에요. 로그인해 주세요.");
  var salt=String(Math.random()).slice(2)+Date.now();
  hash(p,salt).then(function(h){var u={name:n,role:ro,region:rr,salt:salt,pw:h,tid:"t"+Date.now()};us[e]=u;
@@ -317,7 +346,10 @@ document.addEventListener("click",function(e){
  if(a==="login"){S.am="login";S.tab="auth";return render()}
  if(a==="authsw"){S.am=S.am==="signup"?"login":"signup";return render()}
  if(a==="authgo")return authgo();
- if(a==="logout"){S.user=null;S.tab=S.role==="member"?"trial":"board";save();render();return toast("로그아웃했습니다")}
+ if(a==="forgot"){var em=g("a-e").value.trim().toLowerCase(),mm=g("a-m");if(!sb){mm.textContent="서버(Supabase) 연결 후 사용할 수 있어요.";return}
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){mm.textContent="위 칸에 이메일을 입력한 뒤 눌러 주세요.";return}
+  sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname}).then(function(r){mm.style.color=r.error?"":"var(--ok)";mm.textContent=r.error?"메일을 보내지 못했어요. 잠시 후 다시 시도하세요.":"비밀번호 재설정 메일을 보냈어요. 메일함을 확인하세요."});return}
+ if(a==="logout"){if(sb)sb.auth.signOut();S.user=null;S.tab=S.role==="member"?"trial":"board";save();render();return toast("로그아웃했습니다")}
  if(GATE[a]&&!S.user){S.am="login";S.tab="auth";render();return toast("로그인하면 이용할 수 있어요")}
  var r=S.reqs.filter(function(x){return x.id===id})[0];
  if(a==="post"){var d=g("f-date").value,tm=g("f-time").value,p=parseInt(g("f-pay").value,10),q=rd("pr");
@@ -348,7 +380,8 @@ document.addEventListener("click",function(e){
  if(a==="fav"){var fi=S.favs.indexOf(id);if(fi>-1)S.favs.splice(fi,1);else S.favs.push(id)}
  if(a==="review"){var tx=g("rv-t-"+id).value.trim();if(!tx)return toast("후기 내용을 입력하세요");var t2=S.trials.filter(function(x){return x.id===id})[0];S.reviews.unshift({id:"v"+Date.now(),center:t2.center,by:S.member,tid:id,rating:parseInt(g("rv-r-"+id).value,10),text:tx,date:plus(0)});toast("후기를 남겼습니다")}
  if(a==="chpw")return chpw();
- if(a==="leave"){if(!confirm("정말 탈퇴할까요? 계정 정보가 삭제됩니다."))return;var us2=users();delete us2[S.user.mail];try{localStorage.setItem(UKEY,JSON.stringify(us2))}catch(x){}S.user=null;S.tab=S.role==="member"?"trial":"board";save();render();return toast("탈퇴했습니다")}
+ if(a==="leave"){if(!confirm("정말 탈퇴할까요? 계정 정보가 삭제됩니다."))return;
+  if(sb){sb.rpc("delete_my_account").then(function(r){if(r.error)return toast("탈퇴하지 못했어요. 잠시 후 다시 시도하세요");sb.auth.signOut();S.user=null;S.tab=S.role==="member"?"trial":"board";save();render();toast("탈퇴했습니다")});return}var us2=users();delete us2[S.user.mail];try{localStorage.setItem(UKEY,JSON.stringify(us2))}catch(x){}S.user=null;S.tab=S.role==="member"?"trial":"board";save();render();return toast("탈퇴했습니다")}
  if(a==="copy"){copyText(notice(r));return}
  if(a==="reset"){var u0=S.user;S=seed();S.user=u0;toast("시연 데이터를 처음 상태로 되돌렸습니다")}
  if(a==="delsess"){S.sess=S.sess.filter(function(x){return x.id!==id})}
@@ -373,6 +406,10 @@ document.addEventListener("change",function(e){
  if(t.id==="m-t"){S.f.type=t.value;save();render()}
  if(t.id==="m-f"){S.f.form=t.value;save();render()}});
 render();
+if(sb){sb.auth.onAuthStateChange(function(ev){if(ev==="PASSWORD_RECOVERY"){recovering=true;S.am="recover";S.tab="auth";render()}});
+ sb.auth.getSession().then(function(r){if(recovering)return;
+  if(r.data&&r.data.session)loadProfile(r.data.session.user,false);
+  else if(S.user){S.user=null;save();render()}})}
 /* 행안부 법정동 코드 변환본(regions.json) 불러오기 */
 fetch("regions.json").then(function(r){if(!r.ok)throw 0;return r.json()}).then(function(j){if(j&&Object.keys(j).length){Object.keys(j).forEach(function(k){R[k]=j[k]});render()}}).catch(function(){});
 try{if(window.claude&&window.claude.use){window.claude.use("db").then(function(db){if(!db)return;DREF=db.doc("pilapick3/state");
