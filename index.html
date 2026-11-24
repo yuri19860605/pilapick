@@ -99,7 +99,7 @@ summary{cursor:pointer;font-size:13px;color:var(--mute)}
 <script>
 (function(){
 /* ===== Supabase 설정: Supabase > Project Settings > API 에서 복사해 붙여넣으세요 ===== */
-var SB_URL="https://YOUR-PROJECT-ID.supabase.co";   /* Project URL */
+var SB_URL="https://nizulzjrwzryjjbeqczy.supabase.co/rest/v1/";   /* Project URL */
 var SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5penVsempyd3pyeWpqYmVxY3p5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU1MTA0OTMsImV4cCI6MjExMTA4NjQ5M30.nmDaa-UfLFQQWg6aVzf1fgUva7vasFKth7zAaqKkDzw";                  /* anon public 키 (공개용. service_role 키는 절대 넣지 마세요) */
 var sb=null,recovering=/type=recovery/.test(location.hash);
 try{if(window.supabase&&SB_URL.indexOf("YOUR-")<0&&SB_KEY.indexOf("YOUR-")<0)sb=window.supabase.createClient(SB_URL,SB_KEY)}catch(e){sb=null}
